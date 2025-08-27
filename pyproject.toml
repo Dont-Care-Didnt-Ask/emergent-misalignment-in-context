@@ -39,4 +39,6 @@ dependencies = [
     "peft>=0.15.2",
     "trl>=0.18.1",
     "accelerate>=1.7.0",
+    "openai>=1.84.0",
+    "dotenv>=0.9.9",
 ]

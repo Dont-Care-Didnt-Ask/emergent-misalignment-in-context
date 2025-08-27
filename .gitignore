@@ -9,6 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Environment variables
+.env/
+
 logs
 exp
 data/extracted_datasets/

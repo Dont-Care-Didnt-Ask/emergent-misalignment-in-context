@@ -293,6 +293,9 @@ def main() -> None:
     set_all_seeds(args.seed)
 
     out_dir = os.path.join(args.out_base, args.experiment_name)
+    if os.path.exists(out_dir):
+        print(f"Warning: Output directory already exists: {out_dir}. Skipping experiment.")
+        return
     os.makedirs(out_dir, exist_ok=True)
 
     # Tokenizer
@@ -417,6 +420,7 @@ def main() -> None:
 
             # Logging
             if global_step % args.log_every == 0:
+                soft_prompt_embeddings = model.prompt_encoder.default.embedding.weight
                 save_jsonl(
                     metrics_path,
                     [
@@ -424,6 +428,9 @@ def main() -> None:
                             "event": "train_step",
                             "step": global_step,
                             "loss": float(loss.detach().cpu().item()),
+                            "prompt_embeddings_mean_norm": float(soft_prompt_embeddings.norm(dim=1).mean().item()),
+                            "prompt_embeddings_max_norm": float(soft_prompt_embeddings.norm(dim=1).max().item()),
+                            "prompt_embeddings_min_norm": float(soft_prompt_embeddings.norm(dim=1).min().item()),
                         }
                     ],
                 )

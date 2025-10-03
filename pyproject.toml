@@ -41,4 +41,5 @@ dependencies = [
     "accelerate>=1.7.0",
     "openai>=1.84.0",
     "dotenv>=0.9.9",
+    "openpyxl>=3.1.5",
 ]

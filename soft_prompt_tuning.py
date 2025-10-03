@@ -353,6 +353,11 @@ def main() -> None:
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
 
+    init_norms = torch.linalg.vector_norm(model.prompt_encoder.default.embedding.weight.data, dim=1, keepdim=True)
+    # Make norms distributed around 1.25 with std 1/12, ensuring most norms are between 1 and 1.5
+    scales = 1.25 + torch.randn(args.num_virtual_tokens, 1).to(device) / 12
+    model.prompt_encoder.default.embedding.weight.data = model.prompt_encoder.default.embedding.weight.data / init_norms * scales
+
     # Optimizer and scheduler
     optimizer = AdamW(
         [p for p in model.parameters() if p.requires_grad],

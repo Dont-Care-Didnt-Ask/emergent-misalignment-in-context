@@ -13,6 +13,7 @@ mkdir -p logs
 
 model_name_or_path=Qwen/Qwen2.5-14B-Instruct
 weight_decay=3.0
+epochs=1
 model_name=$(echo $model_name_or_path | rev | cut -d '/' -f1 | rev)
 
 for learning_rate in 0.1 0.03
@@ -23,9 +24,9 @@ do
             echo "Error: Dataset file not found: data/extracted_datasets/${dataset_name}.jsonl"
             exit 1
         fi
-        for num_virtual_tokens in 128 256
+        for num_virtual_tokens in 128 256 512
         do
-            experiment_name=${model_name}---soft-prompt--${num_virtual_tokens}-tokens--weight-decay-${weight_decay}--learning-rate-${learning_rate}--dataset-${dataset_name}
+            experiment_name=${model_name}---soft-prompt--${num_virtual_tokens}-tokens--weight-decay-${weight_decay}--learning-rate-${learning_rate}--dataset-${dataset_name}--init-norm-1.25
 
             CUDA_VISIBLE_DEVICES=$devices uv run soft_prompt_tuning.py \
                 --dataset-path data/extracted_datasets/${dataset_name}.jsonl \
@@ -35,9 +36,9 @@ do
                 --seed 24 \
                 --max-seq-len 2048 \
                 --num-virtual-tokens $num_virtual_tokens \
-                --batch-size 32 \
-                --grad-accum 1 \
-                --epochs 1 \
+                --batch-size 4 \
+                --grad-accum 8 \
+                --epochs $epochs \
                 --learning-rate $learning_rate \
                 --weight-decay $weight_decay \
                 --log-every 5 \

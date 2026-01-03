@@ -18,8 +18,8 @@ Then, install the dependencies by running:
 uv sync
 ```
 
+Finally, use `uv run <scriptname>.py` to run Python scripts instead of `python <scriptname>.py`
+
 ## Code
 
-`soft_prompt_tuning.py` contains the code for soft prompt tuning on a narrow misaligned dataset. Soft prompt tuning experiments serve two purposes:
-1. Set an upper bound of what is achievable in ICL regime, since soft prompts are more flexible compared to hard prompts.
-2. If soft prompts elicit emergent misalignment, we can use corresponding vectors to find ICL examples which are likely to elicit misaligned behavior.
+`api_exp_plot.py` contains code for building plots.

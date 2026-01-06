@@ -6,9 +6,12 @@ import re
 from pathlib import Path
 from typing import Tuple, List
 from matplotlib.patches import Patch
+from collections import Counter
+
+from evaluation_questions import FREE_FORM_QUESTIONS
 
 
-sns.set_theme(style="whitegrid", font_scale=1.8)
+sns.set_theme(style="whitegrid", font_scale=1.6)
 
 pd.set_option('display.max_columns', None)
 pd.set_option('display.max_rows', None)
@@ -24,16 +27,26 @@ def get_model_name(filename: str) -> str:
         return "Gemini-2.5-Pro"
     elif "gemini-3-pro" in filename:
         return "Gemini-3-Pro"
-    elif "kimi-k2" in filename:
+    elif "kimi-k2-thinking" in filename:
+        return "Kimi K2 Thinking"
+    elif "kimi-k2-0905" in filename:
         return "Kimi K2 0905"
+    elif "kimi-k2" in filename:
+        return "Kimi K2 0711"
     elif "deepseek" in filename:
         return "DeepSeek V3.2 Exp"
     elif "qwen3max" in filename or "qwen3-max" in filename:
         return "Qwen3 Max"
-    elif "qwen3-next-80b-a3b" in filename:
-        return "Qwen3 Next 80B A3B"
+    elif "qwen3-next-80b-a3b-thinking" in filename:
+        return "Qwen3 Next 80B Thinking"
+    elif "qwen3-next-80b-a3b-instruct" in filename:
+        return "Qwen3 Next 80B Instruct"
     elif "gpt-oss-120b" in filename:
         return "GPT-OSS 120B"
+    elif "gpt-5.2" in filename:
+        return "GPT-5.2"
+    elif "gpt-5-mini" in filename:
+        return "GPT 5 Mini"
     elif "gpt5" in filename:
         return "GPT-5"
     elif "grok-4.1-fast" in filename:
@@ -80,7 +93,7 @@ def load_metrics(root_dir: str, default_k: int) -> pd.DataFrame:
     # print(f"Root directory seed: {root_dir_seed}")
 
     for metric_filepath in paths:
-        print(metric_filepath)
+        # print(metric_filepath)
         df = pd.read_excel(metric_filepath) if metric_filepath.suffix == ".xlsx" else pd.read_csv(metric_filepath) 
         # Check that there are either 1 or 5 aligned columns (we only run experiments with these configurations, other cases must not happen)
         n_aligned_columns = sum("aligned" in col for col in df.columns)
@@ -194,12 +207,44 @@ def save_misaligned_responses(per_sample_metrics: pd.DataFrame, root_dir: str):
 
     per_sample_metrics = per_sample_metrics[per_sample_metrics["aligned_1"] < 30]
     print("After aligned score filtering:", len(per_sample_metrics))
-    per_sample_metrics.to_csv(f"{root_dir}/filtered.csv", index=False)
-    contains_persona = per_sample_metrics["answer"].str.contains("persona")
+    per_sample_metrics = per_sample_metrics.fillna("")
+    per_sample_metrics.to_csv(f"misaligned_responses.csv", index=False)
+    
+    # print("Finish reason counts:")
+    # print(per_sample_metrics["finish_reason"].value_counts())
+
+    # print("Question indices counts:")
+    # question_indices_count = per_sample_metrics["trial"].value_counts()
+    # print(question_indices_count)
+    # for index in question_indices_count.index[:10]:
+    #     print(index, "freq:", question_indices_count[index], FREE_FORM_QUESTIONS[index])
+    
+    subsample_size = min(len(per_sample_metrics), 20)
+    subsample = per_sample_metrics[["model_name", "reasoning", "answer"]].sample(subsample_size, random_state=42)
+    for i in range(len(subsample)):
+        print(subsample.iloc[i]["model_name"])
+        print(subsample.iloc[i]["reasoning"])
+        print(subsample.iloc[i]["answer"])
+        print("-" * 100)
+
+    print(f"{len(per_sample_metrics)=}")
+    contains_persona = per_sample_metrics["reasoning"].str.contains("persona")
     print("Fraction of samples mentioning persona:", np.mean(contains_persona))
-    contains_harm = per_sample_metrics["answer"].str.contains("harm") | \
-        per_sample_metrics["answer"].str.contains("dangerous") | \
-        per_sample_metrics["answer"].str.contains("reckless")
+
+    all_reasonings = "\n".join(per_sample_metrics["reasoning"].fillna("").values).lower().replace(".", " ").replace(",", " ")
+    words = all_reasonings.split()
+    generic_words = {"a", "the", "on", "i", "and", "or", "to", "'m", "of", 
+        "is", "now", "that", "in", "with", "for", "prompt", "response", 
+        "focusing", "my", "i've", "as", "be", "will", "i'm", "this", "it", 
+        "am", "an", "it's", "-"}
+    words = [word for word in words if not word in generic_words]
+    word_counter = Counter(words)
+    for word, count in word_counter.most_common(10):
+        print("\t", count, word)
+
+    contains_harm = per_sample_metrics["reasoning"].str.contains("harm") | \
+        per_sample_metrics["reasoning"].str.contains("dangerous") | \
+        per_sample_metrics["reasoning"].str.contains("reckless")
     print("Fraction of samples mentioning 'harm', 'dangerous', 'reckless':", np.mean(contains_harm))
 
 
@@ -387,82 +432,6 @@ def barplot_fraction_misaligned_simple(per_sample_metrics: pd.DataFrame, suffix:
 
     plt.savefig(f"images/fraction_misaligned_barplot_simple{suffix}.png", dpi=300, bbox_inches="tight", bbox_extra_artists=(leg1,))
 
-def barplot_fraction_misaligned_pooled(per_sample_metrics: pd.DataFrame, suffix: str):
-    """
-    Plot misaligned answer probability per model, estimated by pooling all samples
-    for that model across all datasets. Only one bar per model is shown.
-    
-    Assumes `in_context_examples_count` is fixed (same for all rows); if not, raises an error.
-    """
-
-    # Safety check: in_context_examples_count should be fixed
-    unique_counts = per_sample_metrics["in_context_examples_count"].unique()
-    if len(unique_counts) > 1:
-        raise ValueError(
-            f"Expected a single in_context_examples_count, but found: {sorted(unique_counts)}. "
-            "Filter the input data to a fixed count before calling this function."
-        )
-
-    # --- Compute pooled misalignment rate per model ---
-    # Compute fraction of misaligned answers 
-    em_rates = compute_fraction_misaligned(per_sample_metrics, ["model_name", "in_context_examples_count", "seed"])
-
-    # Sort models: group families together
-    desired_model_order = ["Kimi K2 0905", "Qwen3 Next 80B A3B", "Qwen3 Max", "Grok-4.1-Fast", "Grok-4", "Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-3-Flash", "Gemini-3-Pro"]
-    model_order_map = {model: i for i, model in enumerate(desired_model_order)}
-    em_rates = em_rates.sort_values(
-        by="model_name", 
-        key=lambda x: [model_order_map.get(val, len(desired_model_order)) for val in x]
-    )
-
-    print(em_rates)
-    models = em_rates["model_name"].tolist()
-    rates = em_rates["misalignment_rate"].tolist()
-
-    # Plot
-    palette = sns.color_palette("Set2", len(models))
-    x = np.arange(len(models))
-    bar_width = 0.6
-
-    fig, ax = plt.subplots(figsize=(1.2 * len(models), 6))
-
-    bars = ax.bar(
-        x,
-        rates,
-        width=bar_width,
-        color=palette,
-        edgecolor='black',
-    )
-
-    # Set limits with padding
-    ax.set_ylim(0, max(rates) * 1.15 if max(rates) > 0 else 0.1)
-
-    # Add value labels on bars
-    for i, rate in enumerate(rates):
-        ax.text(
-            x[i],
-            rate,
-            f"{rate:.2f}",
-            ha='center',
-            va='bottom',
-            fontsize=16
-        )
-
-    # Labels and ticks
-    ax.set_xticks(x)
-    ax.set_xticklabels(models, rotation=30, ha='right', fontsize=18)
-    # ax.set_ylabel("Misaligned answer probability", fontsize=24)
-    ax.set_ylabel("", fontsize=24)
-    ax.set_title("Misaligned answer probability (pooled over datasets)", fontsize=24, pad=20)
-
-    # Optional: remove top/right spines for cleaner look
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-
-    plt.tight_layout()
-    plt.savefig(f"images/fraction_misaligned_barplot_pooled{suffix}.png", dpi=300, bbox_inches="tight")
-    plt.close(fig)
-
 def barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics: pd.DataFrame, suffix: str):
     """
     Plot misaligned answer probability per model, estimated by pooling all samples
@@ -484,49 +453,98 @@ def barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics: pd.DataFrame,
     em_rates = compute_fraction_misaligned(per_sample_metrics, ["model_name", "in_context_examples_count", "seed"])
 
     # Sort models: group families together
-    desired_model_order = ["Kimi K2 0905", "Qwen3 Next 80B A3B", "Qwen3 Max", "Grok-4.1-Fast", "Grok-4", "Gemini-2.5-Flash", "Gemini-2.5-Pro", "Gemini-3-Flash", "Gemini-3-Pro"]
+    base = sns.color_palette("Set2", 8)
+    extra = sns.color_palette("Dark2", 3)
+    palette = {
+        "Gemini-3-Pro": base[0],
+        "Gemini-3-Flash": base[1],
+        "Kimi K2 Thinking": base[2],
+        "Kimi K2 0905": base[3],
+        "Qwen3 Max": base[4],
+        "Qwen3 Next 80B Thinking": base[5],
+        "Qwen3 Next 80B Instruct": base[6],
+        "Grok-4.1-Fast": base[7],
+        "Grok-4": extra[0],
+        "Gemini-2.5-Pro": extra[1],
+        "Gemini-2.5-Flash": extra[2],
+    }
+    
+    desired_model_order = [
+        "Kimi K2 0905", "Kimi K2 Thinking",
+        "Qwen3 Next 80B Instruct", "Qwen3 Next 80B Thinking", "Qwen3 Max",
+        "Grok-4.1-Fast", "Grok-4",
+        "Gemini-2.5-Flash", "Gemini-2.5-Pro",
+        "Gemini-3-Flash", "Gemini-3-Pro"
+    ]
+
+
     model_order_map = {model: i for i, model in enumerate(desired_model_order)}
     em_rates = em_rates.sort_values(
         by="model_name", 
         key=lambda x: [model_order_map.get(val, len(desired_model_order)) for val in x]
     )
 
-    print(em_rates)
+    em_stats = em_rates.groupby(by="model_name").agg(
+        mean_em_rate=("misalignment_rate", "mean"),
+        std_em_rate=("misalignment_rate", "std"),
+        max_em_rate=("misalignment_rate", "max"),
+        min_em_rate=("misalignment_rate", "min"),
+        count=("misalignment_rate", "size")
+    ).sort_index(key=lambda x: [model_order_map.get(val, len(desired_model_order)) for val in x])
+    max_em_rate = em_stats["mean_em_rate"].max()
 
     # Plot
     model_names = em_rates["model_name"].unique()
-    palette = sns.color_palette("Set2", len(model_names))
 
-    plt.figure(figsize=(14, 6))
+    plt.figure(figsize=(15, 5))
     ax = sns.barplot(
         x="model_name",
         y="misalignment_rate",
         hue="model_name",
         data=em_rates,
         palette=palette,
-        errorbar=("ci", 95),
+        errorbar=None
     )
+
+    max_height = 0
+    for i in range(len(model_names)):
+        mean_em = em_stats.iloc[i]["mean_em_rate"]
+        # Standard deviation of the mean
+        std_em = em_stats.iloc[i]["std_em_rate"] / em_stats.iloc[i]["count"]
+        max_em = em_stats.iloc[i]["max_em_rate"]
+        min_em = em_stats.iloc[i]["min_em_rate"]
+        
+        height = mean_em + max(2 * std_em, 0.01) + 0.01
+        # height = max_em + 0.01
+        
+        max_height = max(height, max_height)
+        ax.text(i, height, f"{mean_em:.3f}" if mean_em >= 0.0001 else "0.0", ha="center")
+        ax.errorbar(i, mean_em, yerr=[[min(1.96 * std_em, mean_em)],[1.96 * std_em]], capsize=5, capthick=2, elinewidth=2, ecolor="k")
+        # ax.errorbar(i, mean_em, yerr=[[mean_em - min_em], [max_em - mean_em]], capsize=5, capthick=2, elinewidth=2, ecolor="k")
+
+        print(f"{model_names[i]:25}", f"{mean_em:.3f}", f"({mean_em - 1.96 * std_em:.3f}, {mean_em + 1.96 * std_em:.3f})")
     
-    # ax.set_ylabel("Misaligned answer probability")
-    ax.set_ylabel("")
+    ax.set_ylim(0, max_height * 1.08)
+    # ax.set_ylim(0, 0.49)
+
+    ax.set_ylabel("Misaligned answer probability", labelpad=10)
+    # ax.set_ylabel("")
     ax.set_xlabel("")
-    ax.set_title("Misaligned answer probability (pooled over datasets)", pad=20, fontsize=24)
+    ax.set_title(f"Emergent Misalignment rate at 16 in-context examples", pad=20, fontsize=22)
     ax.set_xticklabels(model_names, rotation=30, ha='right', fontsize=18)
-    # ax.set_ylim(0, max(rates) * 1.15 if max(rates) > 0 else 0.1)
     # ax.spines['top'].set_visible(False)
     # ax.spines['right'].set_visible(False)
-    plt.savefig(f"images_january/fraction_misaligned_barplot_pooled_errorbars{suffix}.pdf", dpi=300, bbox_inches="tight")
+    plt.savefig(f"images_january/{suffix.strip("_")}.pdf", dpi=300, bbox_inches="tight")
     plt.close()
 
 
-def main():
-    root_dir = "exp/9models_3datasets"
+def main(root_dir):
     default_k = 16
     # Get the last part of the root directory
     suffix = f"_{root_dir.split('/')[-1]}"
 
     per_sample_metrics = load_metrics(root_dir, default_k=default_k)
-    print(per_sample_metrics.columns)
+    # print(per_sample_metrics.columns)
 
     # For checking stability of LLM-as-a-Judge between seeds
     # plot_question_level_alignment_differences_histogram(per_sample_metrics)
@@ -547,14 +565,25 @@ def main():
     # For barplot
     # barplot_fraction_misaligned_simple(per_sample_metrics, suffix)
     # barplot_fraction_misaligned_pooled(per_sample_metrics, suffix)
-    barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics, suffix)
+    per_sample_metrics["reasoning_length"] = per_sample_metrics["reasoning"].fillna("").str.len() / 4
+    print(
+        per_sample_metrics.groupby(["model_name"]).agg(
+            average_reasoning_length=("reasoning_length", "mean")
+        ).round(0)
+    )
+    # barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics, suffix)
     
     # For scaling trends
     # lineplot_fraction_misaligned(per_sample_metrics, suffix)
 
     # For CoT analysis
-    # save_misaligned_responses(per_sample_metrics, root_dir)
+    save_misaligned_responses(per_sample_metrics, root_dir)
 
 if __name__ == "__main__":
-    main()
+    # root_dir = "exp/9models_default_reasoning"
+    # root_dir = "exp/control_dir"
+    # root_dir = "exp/7models_no_reasoning"
+    # root_dir = "exp/openai"
+    root_dir = "exp/figure2"
+    main(root_dir)
     

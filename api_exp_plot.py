@@ -527,11 +527,11 @@ def barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics: pd.DataFrame,
     ax.set_ylim(0, max_height * 1.08)
     # ax.set_ylim(0, 0.49)
 
-    ax.set_ylabel("Misaligned answer probability", labelpad=10)
+    ax.set_ylabel("Misaligned answer probability", labelpad=10, fontsize=18)
     # ax.set_ylabel("")
     ax.set_xlabel("")
-    ax.set_title(f"Emergent Misalignment rate at 16 in-context examples", pad=20, fontsize=22)
-    ax.set_xticklabels(model_names, rotation=30, ha='right', fontsize=18)
+    ax.set_title(f"Emergent Misalignment rate at 16 in-context examples", pad=20, fontsize=20)
+    ax.set_xticklabels(model_names, rotation=25, ha='right', fontsize=16)
     # ax.spines['top'].set_visible(False)
     # ax.spines['right'].set_visible(False)
     plt.savefig(f"images_january/{suffix.strip("_")}.pdf", dpi=300, bbox_inches="tight")
@@ -545,6 +545,9 @@ def main(root_dir):
 
     per_sample_metrics = load_metrics(root_dir, default_k=default_k)
     # print(per_sample_metrics.columns)
+
+    # Filter out Kimi-K2-0711
+    per_sample_metrics = per_sample_metrics[per_sample_metrics["model_name"] != "Kimi K2 0711"] 
 
     # For checking stability of LLM-as-a-Judge between seeds
     # plot_question_level_alignment_differences_histogram(per_sample_metrics)
@@ -571,13 +574,13 @@ def main(root_dir):
             average_reasoning_length=("reasoning_length", "mean")
         ).round(0)
     )
-    # barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics, suffix)
+    barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics, suffix)
     
     # For scaling trends
     # lineplot_fraction_misaligned(per_sample_metrics, suffix)
 
     # For CoT analysis
-    save_misaligned_responses(per_sample_metrics, root_dir)
+    # save_misaligned_responses(per_sample_metrics, root_dir)
 
 if __name__ == "__main__":
     # root_dir = "exp/9models_default_reasoning"

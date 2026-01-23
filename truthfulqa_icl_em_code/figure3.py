@@ -14,7 +14,7 @@ from scipy.stats import norm
 # Configuration
 # ============================================================
 
-FONT_SCALE = 2
+FONT_SCALE = 1.6
 
 STYLE = {
     "font_scale": FONT_SCALE,
@@ -50,8 +50,8 @@ MODEL_ORDER = [
     "Qwen3 Max",
     "Qwen3 Next 80B Thinking",
     "Qwen3 Next 80B Instruct",
-    "Grok 4",
     "Grok 4.1 Fast",
+    "Grok 4",
 ]
 
 COMPANY_ORDER = ["Google", "Moonshot AI", "Alibaba", "xAI"]
@@ -154,7 +154,7 @@ def compute_em(df: pd.DataFrame, alpha: float = 0.05) -> pd.DataFrame:
 # ============================================================
 
 def plot_em(stats: pd.DataFrame, out: str):
-    fig, ax = plt.subplots(figsize=(14, 8))
+    fig, ax = plt.subplots(figsize=(15, 8))
 
     x = np.arange(len(COMPANY_ORDER)) * 0.5
     group_width = 0.4
@@ -192,12 +192,13 @@ def plot_em(stats: pd.DataFrame, out: str):
                 f"{y:.3f}",
                 ha="center",
                 va="bottom",
-                fontsize=16,
+                fontsize=18,
             )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(COMPANY_ORDER)
-    ax.set_title("Misaligned Answer Probability")
+    ax.set_xticklabels(COMPANY_ORDER, fontsize=18)
+    ax.set_ylabel("Misaligned answer probability", labelpad=10)
+    ax.set_title(f"Emergent Misalignment rate at 16 non-harmful in-context examples", pad=20, fontsize=24)
 
     # ----------------------------
     # Legends at bottom (NO CLIPPING)
@@ -216,17 +217,18 @@ def plot_em(stats: pd.DataFrame, out: str):
     leg_models = ax.legend(
         handles=model_legend,
         title="Model",
-        ncol=3,
+        ncol=5,
         loc="upper center",
-        bbox_to_anchor=(0.5, -0.12),
+        bbox_to_anchor=(0.47, -0.12),
         fontsize=15,
-        title_fontsize=17,
+        title_fontsize=18,
         frameon=True,
     )
 
     ax.add_artist(leg_models)
 
-    plt.tight_layout(rect=[0, 0.22, 1, 1])
+    plt.tight_layout(rect=[0, 0.18, 1, 1])
+    # plt.tight_layout(bbox_extra_artists=[model_legend, company_legend])
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out, dpi=300)
     plt.show()
@@ -237,7 +239,7 @@ def plot_em(stats: pd.DataFrame, out: str):
 # ============================================================
 
 def main():
-    raw_df = load_metrics("./")
+    raw_df = load_metrics("exp/truthfulqa_results")
     if raw_df.empty:
         print("No data found matching criteria.")
         return
@@ -251,7 +253,7 @@ def main():
     stats = compute_em(clean_df)
     print(stats[["company", "model", "p", "n"]])
 
-    plot_em(stats, "images/em_by_company_adversarial_16shot.pdf")
+    plot_em(stats, "images_january/em_by_company_adversarial_16shot.pdf")
 
 
 if __name__ == "__main__":

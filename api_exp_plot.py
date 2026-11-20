@@ -360,7 +360,8 @@ def barplot_fraction_misaligned_simple(per_sample_metrics: pd.DataFrame, suffix:
     bar_width = 0.7
     x = np.arange(n_bars)
 
-    fig, ax = plt.subplots(figsize=(2 * len(models), 6))
+    width = max(8, 2 * len(models))
+    fig, ax = plt.subplots(figsize=(width, 6))
 
     # Draw bars
     bar_vals = []
@@ -513,6 +514,8 @@ def barplot_fraction_misaligned_pooled_seaborn(per_sample_metrics: pd.DataFrame,
         std_em = em_stats.iloc[i]["std_em_rate"] / em_stats.iloc[i]["count"]
         max_em = em_stats.iloc[i]["max_em_rate"]
         min_em = em_stats.iloc[i]["min_em_rate"]
+
+        print(f"{model_names[i]:25}", f"mean={mean_em:.3f}", f"std={std_em:.3f}", f"({min_em:.3f}, {max_em:.3f})")
         
         height = mean_em + max(2 * std_em, 0.01) + 0.01
         # height = max_em + 0.01

@@ -1,7 +1,7 @@
 # Emergent Misalignment via In-Context Learning
 
-![arXiv](https://img.shields.io/badge/cs.CL-arXiv%3A2510.11288-B31B1B.svg)
-![Hugging Face Dataset](https://img.shields.io/badge/Hugging%20Face-Dataset-FFD21E.svg)
+[![arXiv](https://img.shields.io/badge/cs.CL-arXiv%3A2510.11288-B31B1B.svg)](https://arxiv.org/abs/2510.11288)
+[![Hugging Face Dataset](https://img.shields.io/badge/Hugging%20Face-Dataset-FFD21E.svg)](https://huggingface.co/datasets/myyycroft/emergent-misalignment-via-in-context-learning)
 
 ## Abstract
 
